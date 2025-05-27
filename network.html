@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Network Intrusion Detection Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #2d1b69 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid #00ff88;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00ff88, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .approach-description {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            font-style: italic;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 140px);
+        }
+
+        .panel {
+            background: rgba(0,0,0,0.4);
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(15px);
+            padding: 20px;
+            position: relative;
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #ff4757, #ff3838, #ff4757);
+            opacity: 1;
+        }
+
+        .panel.incremental::before {
+            background: linear-gradient(90deg, #00ff88, #00d4ff, #00ff88);
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .traditional .status-indicator {
+            background: #ff4757;
+        }
+
+        .incremental .status-indicator {
+            background: #00ff88;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        .graph-container {
+            height: 350px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            position: relative;
+            background: rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .metric {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid;
+            text-align: center;
+        }
+
+        .traditional .metric {
+            border-color: #ff4757;
+        }
+
+        .incremental .metric {
+            border-color: #00ff88;
+        }
+
+        .metric-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-start {
+            background: linear-gradient(45deg, #00ff88, #00d4ff);
+            color: #0f0f23;
+        }
+
+        .btn-stop {
+            background: linear-gradient(45deg, #ff4757, #ff3838);
+            color: white;
+        }
+
+        .btn-reset {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .link {
+            transition: all 0.3s;
+        }
+
+        .malicious-node {
+            fill: #ff4757 !important;
+            stroke: #ff3838 !important;
+            stroke-width: 3px !important;
+            animation: alertPulse 1s infinite;
+        }
+
+        .malicious-link {
+            stroke: #ff4757 !important;
+            stroke-width: 4px !important;
+            animation: alertPulse 1s infinite;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1rem;
+            opacity: 0.7;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Dynamic Network Intrusion Detection Simulation</h1>
+        <p>Comparing Traditional Static vs. Incremental Dynamic Graph Analysis</p>
+        <div class="approach-description">Demonstrating computational complexity differences in subgraph isomorphism for malicious pattern detection</div>
+    </div>
+
+    <div class="container">
+        <!-- Traditional Approach Panel -->
+        <div class="panel traditional">
+            <div class="panel-title">
+                <div class="status-indicator"></div>
+                Traditional Static Approach
+                <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 10px;">(Complete Graph Rebuild)</span>
+            </div>
+            <div class="graph-container" id="traditional-graph">
+                <div class="loading">Waiting for simulation start...</div>
+            </div>
+            <div class="metrics">
+                <div class="metric">
+                    <div class="metric-value" id="trad-complexity">O(V!)</div>
+                    <div class="metric-label">Time Complexity</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="trad-memory">0 MB</div>
+                    <div class="metric-label">Memory Usage</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="trad-detections">0</div>
+                    <div class="metric-label">Detections</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="trad-delay">~5s</div>
+                    <div class="metric-label">Detection Delay</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Incremental Approach Panel -->
+        <div class="panel incremental">
+            <div class="panel-title">
+                <div class="status-indicator"></div>
+                Incremental Dynamic Approach
+                <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 10px;">(Local Updates Only)</span>
+            </div>
+            <div class="graph-container" id="incremental-graph">
+                <div class="loading">Waiting for simulation start...</div>
+            </div>
+            <div class="metrics">
+                <div class="metric">
+                    <div class="metric-value" id="incr-complexity">O(k)</div>
+                    <div class="metric-label">Time Complexity</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="incr-memory">0 MB</div>
+                    <div class="metric-label">Memory Usage</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="incr-detections">0</div>
+                    <div class="metric-label">Detections</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="incr-delay">~0.15s</div>
+                    <div class="metric-label">Detection Delay</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-start" onclick="startSimulation()">▶️ Start Simulation</button>
+        <button class="btn btn-stop" onclick="stopSimulation()">⏹️ Stop</button>
+        <button class="btn btn-reset" onclick="resetSimulation()">🔄 Reset</button>
+    </div>
+
+    <script>
+        // Global variables
+        let isRunning = false;
+        let simulationInterval = null;
+        let nodeId = 0;
+        let traditionalDetections = 0;
+        let incrementalDetections = 0;
+        
+        // Data structures
+        let traditionalNodes = [];
+        let traditionalLinks = [];
+        let incrementalNodes = [];
+        let incrementalLinks = [];
+        
+        // D3 simulations
+        let traditionalSim = null;
+        let incrementalSim = null;
+
+        // Graph dimensions with padding
+        const GRAPH_WIDTH = 440;
+        const GRAPH_HEIGHT = 320;
+        const NODE_RADIUS = 8;
+        const PADDING = NODE_RADIUS + 5;
+
+        // Node types and colors
+        const nodeTypes = ['server', 'client', 'router', 'database'];
+        const nodeColors = {
+            server: '#4ecdc4',
+            client: '#45b7d1', 
+            router: '#f9ca24',
+            database: '#eb4d4b'
+        };
+
+        function getRandomNodeType() {
+            return nodeTypes[Math.floor(Math.random() * nodeTypes.length)];
+        }
+
+        // Processing indicators for visual feedback
+        function showProcessingIndicator(graphType) {
+            const container = d3.select(`#${graphType}-graph`);
+            container.append('div')
+                .attr('class', 'processing-indicator')
+                .style('position', 'absolute')
+                .style('top', '10px')
+                .style('right', '10px')
+                .style('background', 'rgba(255, 69, 87, 0.9)')
+                .style('color', 'white')
+                .style('padding', '5px 10px')
+                .style('border-radius', '15px')
+                .style('font-size', '12px')
+                .style('z-index', '20')
+                .text('🔄 Rebuilding Graph...');
+        }
+        
+        function hideProcessingIndicator(graphType) {
+            d3.select(`#${graphType}-graph .processing-indicator`).remove();
+        }
+        
+        function showPatternMatchingIndicator(graphType) {
+            const container = d3.select(`#${graphType}-graph`);
+            const color = graphType === 'traditional' ? 'rgba(255, 69, 87, 0.9)' : 'rgba(0, 255, 136, 0.9)';
+            const text = graphType === 'traditional' ? '🔍 Full Pattern Analysis...' : '⚡ Local Pattern Check...';
+            
+            container.append('div')
+                .attr('class', 'pattern-indicator')
+                .style('position', 'absolute')
+                .style('bottom', '10px')
+                .style('right', '10px')
+                .style('background', color)
+                .style('color', 'white')
+                .style('padding', '5px 10px')
+                .style('border-radius', '15px')
+                .style('font-size', '12px')
+                .style('z-index', '20')
+                .text(text);
+        }
+        
+        function hidePatternMatchingIndicator(graphType) {
+            d3.select(`#${graphType}-graph .pattern-indicator`).remove();
+        }
+
+        // Boundary constraint function
+        function constrainToBounds(node) {
+            node.x = Math.max(PADDING, Math.min(GRAPH_WIDTH - PADDING, node.x));
+            node.y = Math.max(PADDING, Math.min(GRAPH_HEIGHT - PADDING, node.y));
+        }
+
+        function getNodeColor(type) {
+            return nodeColors[type] || '#95a5a6';
+        }
+
+        function createNetworkEvent() {
+            const sourceType = getRandomNodeType();
+            const targetType = getRandomNodeType();
+            // Increase malicious activity frequency to better demonstrate detection differences
+            const isMalicious = Math.random() < 0.35; // 35% chance of malicious
+            
+            return {
+                sourceId: `node_${nodeId++}`,
+                targetId: `node_${nodeId++}`,
+                sourceType: sourceType,
+                targetType: targetType,
+                isMalicious: isMalicious,
+                timestamp: Date.now()
+            };
+        }
+
+        function initializeGraphs() {
+            console.log('Initializing graphs...');
+            initTraditionalGraph();
+            initIncrementalGraph();
+        }
+
+        function initTraditionalGraph() {
+            const container = d3.select('#traditional-graph');
+            container.select('svg').remove(); // Clear any existing
+            
+            const svg = container.append('svg')
+                .attr('width', '100%')
+                .attr('height', '100%')
+                .attr('viewBox', `0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`)
+                .style('background', 'transparent');
+            
+            // Create force simulation with boundary constraints
+            traditionalSim = d3.forceSimulation()
+                .force('link', d3.forceLink().id(d => d.id).distance(50))
+                .force('charge', d3.forceManyBody().strength(-120))
+                .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
+                .force('collision', d3.forceCollide().radius(NODE_RADIUS + 2))
+                .force('boundary', () => {
+                    traditionalNodes.forEach(constrainToBounds);
+                });
+
+            // Create groups for links and nodes
+            svg.append('g').attr('class', 'links');
+            svg.append('g').attr('class', 'nodes');
+            
+            console.log('Traditional graph initialized');
+        }
+
+        function initIncrementalGraph() {
+            const container = d3.select('#incremental-graph');
+            container.select('svg').remove(); // Clear any existing
+            
+            const svg = container.append('svg')
+                .attr('width', '100%')
+                .attr('height', '100%')
+                .attr('viewBox', `0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`)
+                .style('background', 'transparent');
+            
+            // Create force simulation with boundary constraints
+            incrementalSim = d3.forceSimulation()
+                .force('link', d3.forceLink().id(d => d.id).distance(50))
+                .force('charge', d3.forceManyBody().strength(-120))
+                .force('center', d3.forceCenter(GRAPH_WIDTH / 2, GRAPH_HEIGHT / 2))
+                .force('collision', d3.forceCollide().radius(NODE_RADIUS + 2))
+                .force('boundary', () => {
+                    incrementalNodes.forEach(constrainToBounds);
+                });
+
+            // Create groups for links and nodes
+            svg.append('g').attr('class', 'links');
+            svg.append('g').attr('class', 'nodes');
+            
+            console.log('Incremental graph initialized');
+        }
+
+        function updateTraditionalGraph(event) {
+            console.log('Traditional: Rebuilding entire graph from scratch...');
+            
+            // Show processing indicator
+            showProcessingIndicator('traditional');
+            
+            // Simulate expensive complete rebuild with exponential complexity
+            setTimeout(() => {
+                // COMPLETE GRAPH RECONSTRUCTION (Traditional Approach)
+                // Clear existing graph and rebuild from scratch
+                const svg = d3.select('#traditional-graph svg');
+                svg.select('.links').selectAll('line').remove();
+                svg.select('.nodes').selectAll('circle').remove();
+                
+                // Add nodes if they don't exist
+                if (!traditionalNodes.find(n => n.id === event.sourceId)) {
+                    traditionalNodes.push({
+                        id: event.sourceId,
+                        type: event.sourceType,
+                        isMalicious: false,
+                        x: Math.random() * (GRAPH_WIDTH - 2 * PADDING) + PADDING,
+                        y: Math.random() * (GRAPH_HEIGHT - 2 * PADDING) + PADDING
+                    });
+                }
+                
+                if (!traditionalNodes.find(n => n.id === event.targetId)) {
+                    traditionalNodes.push({
+                        id: event.targetId,
+                        type: event.targetType,
+                        isMalicious: false,
+                        x: Math.random() * (GRAPH_WIDTH - 2 * PADDING) + PADDING,
+                        y: Math.random() * (GRAPH_HEIGHT - 2 * PADDING) + PADDING
+                    });
+                }
+                
+                // Add link
+                traditionalLinks.push({
+                    source: event.sourceId,
+                    target: event.targetId,
+                    isMalicious: event.isMalicious
+                });
+                
+                // FULL GRAPH RECONSTRUCTION - Simulate O(V!) complexity
+                console.log('Traditional: Performing full subgraph isomorphism on', traditionalNodes.length, 'nodes');
+                
+                renderTraditionalGraph();
+                updateTraditionalMetrics();
+                hideProcessingIndicator('traditional');
+                
+                // DELAYED PATTERN MATCHING - Full graph analysis required
+                if (event.isMalicious) {
+                    console.log('Traditional: Starting full pattern matching...');
+                    showPatternMatchingIndicator('traditional');
+                    setTimeout(() => {
+                        traditionalDetections++;
+                        document.getElementById('trad-detections').textContent = traditionalDetections;
+                        highlightMalicious('traditional', event);
+                        hidePatternMatchingIndicator('traditional');
+                        console.log('Traditional: Pattern match complete after full analysis');
+                    }, 4000); // Long delay for full pattern matching
+                }
+                
+            }, Math.min(3000 + traditionalNodes.length * 200, 8000)); // Increasing delay with graph size
+        }
+
+        function updateIncrementalGraph(event) {
+            console.log('Incremental: Adding edge incrementally to existing graph...');
+            
+            // INCREMENTAL UPDATE (Our Proposed Approach)
+            // Only process the new edge and affected local subgraph
+            
+            // Add nodes if they don't exist (minimal operation)
+            let sourceNode = incrementalNodes.find(n => n.id === event.sourceId);
+            let targetNode = incrementalNodes.find(n => n.id === event.targetId);
+            
+            if (!sourceNode) {
+                sourceNode = {
+                    id: event.sourceId,
+                    type: event.sourceType,
+                    isMalicious: false,
+                    x: Math.random() * (GRAPH_WIDTH - 2 * PADDING) + PADDING,
+                    y: Math.random() * (GRAPH_HEIGHT - 2 * PADDING) + PADDING
+                };
+                incrementalNodes.push(sourceNode);
+            }
+            
+            if (!targetNode) {
+                targetNode = {
+                    id: event.targetId,
+                    type: event.targetType,
+                    isMalicious: false,
+                    x: Math.random() * (GRAPH_WIDTH - 2 * PADDING) + PADDING,
+                    y: Math.random() * (GRAPH_HEIGHT - 2 * PADDING) + PADDING
+                };
+                incrementalNodes.push(targetNode);
+            }
+            
+            // Add link incrementally
+            const newLink = {
+                source: event.sourceId,
+                target: event.targetId,
+                isMalicious: event.isMalicious
+            };
+            incrementalLinks.push(newLink);
+            
+            // INCREMENTAL RENDERING - Only update affected areas
+            renderIncrementalGraphIncremental(sourceNode, targetNode, newLink);
+            updateIncrementalMetrics();
+            
+            // FAST INCREMENTAL PATTERN MATCHING - Only check local neighborhood
+            if (event.isMalicious) {
+                console.log('Incremental: Performing local pattern matching on affected subgraph...');
+                showPatternMatchingIndicator('incremental');
+                setTimeout(() => {
+                    incrementalDetections++;
+                    document.getElementById('incr-detections').textContent = incrementalDetections;
+                    highlightMalicious('incremental', event);
+                    hidePatternMatchingIndicator('incremental');
+                    console.log('Incremental: Local pattern match complete - O(k) complexity');
+                }, 150); // Fast local analysis
+            }
+        }
+
+        function renderTraditionalGraph() {
+            const svg = d3.select('#traditional-graph svg');
+            
+            // Update links
+            const links = svg.select('.links')
+                .selectAll('line')
+                .data(traditionalLinks);
+                
+            links.enter().append('line')
+                .attr('class', 'link')
+                .attr('stroke', d => d.isMalicious ? '#ff4757' : '#999')
+                .attr('stroke-width', d => d.isMalicious ? 3 : 1);
+            
+            // Update nodes
+            const nodes = svg.select('.nodes')
+                .selectAll('circle')
+                .data(traditionalNodes);
+                
+            const nodeEnter = nodes.enter().append('circle')
+                .attr('class', 'node')
+                .attr('r', NODE_RADIUS)
+                .attr('fill', d => getNodeColor(d.type))
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 2);
+                
+            nodeEnter.append('title')
+                .text(d => `${d.id} (${d.type})`);
+            
+            // Update simulation
+            traditionalSim.nodes(traditionalNodes);
+            traditionalSim.force('link').links(traditionalLinks);
+            traditionalSim.alpha(0.3).restart();
+            
+            traditionalSim.on('tick', () => {
+                // Apply boundary constraints
+                traditionalNodes.forEach(constrainToBounds);
+                
+                svg.select('.links').selectAll('line')
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                    
+                svg.select('.nodes').selectAll('circle')
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+            });
+        }
+
+        function renderIncrementalGraphIncremental(sourceNode, targetNode, newLink) {
+            const svg = d3.select('#incremental-graph svg');
+            
+            // INCREMENTAL RENDERING - Only add new elements, don't rebuild
+            
+            // Add new link
+            svg.select('.links')
+                .append('line')
+                .datum(newLink)
+                .attr('class', 'link')
+                .attr('stroke', d => d.isMalicious ? '#ff4757' : '#999')
+                .attr('stroke-width', d => d.isMalicious ? 3 : 1)
+                .style('opacity', 0)
+                .transition()
+                .duration(300)
+                .style('opacity', 1);
+            
+            // Add new nodes if they're actually new
+            const existingNodes = svg.select('.nodes').selectAll('circle').data();
+            
+            if (!existingNodes.find(n => n.id === sourceNode.id)) {
+                const sourceCircle = svg.select('.nodes')
+                    .append('circle')
+                    .datum(sourceNode)
+                    .attr('class', 'node')
+                    .attr('r', 0)
+                    .attr('fill', getNodeColor(sourceNode.type))
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2)
+                    .attr('cx', sourceNode.x)
+                    .attr('cy', sourceNode.y);
+                    
+                sourceCircle.append('title')
+                    .text(`${sourceNode.id} (${sourceNode.type})`);
+                    
+                sourceCircle.transition()
+                    .duration(300)
+                    .attr('r', NODE_RADIUS);
+            }
+            
+            if (!existingNodes.find(n => n.id === targetNode.id)) {
+                const targetCircle = svg.select('.nodes')
+                    .append('circle')
+                    .datum(targetNode)
+                    .attr('class', 'node')
+                    .attr('r', 0)
+                    .attr('fill', getNodeColor(targetNode.type))
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2)
+                    .attr('cx', targetNode.x)
+                    .attr('cy', targetNode.y);
+                    
+                targetCircle.append('title')
+                    .text(`${targetNode.id} (${targetNode.type})`);
+                    
+                targetCircle.transition()
+                    .duration(300)
+                    .attr('r', NODE_RADIUS);
+            }
+            
+            // Update simulation with minimal restart
+            incrementalSim.nodes(incrementalNodes);
+            incrementalSim.force('link').links(incrementalLinks);
+            incrementalSim.alpha(0.1).restart(); // Minimal disruption
+            
+            incrementalSim.on('tick', () => {
+                incrementalNodes.forEach(constrainToBounds);
+                
+                svg.select('.links').selectAll('line')
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                    
+                svg.select('.nodes').selectAll('circle')
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+            });
+        }
+
+        function highlightMalicious(graphType, event) {
+            const svg = d3.select(`#${graphType}-graph svg`);
+            
+            // Highlight nodes
+            svg.select('.nodes').selectAll('circle')
+                .filter(d => d.id === event.sourceId || d.id === event.targetId)
+                .classed('malicious-node', true);
+                
+            // Highlight links
+            svg.select('.links').selectAll('line')
+                .filter(d => (d.source.id === event.sourceId && d.target.id === event.targetId) ||
+                            (d.source === event.sourceId && d.target === event.targetId))
+                .classed('malicious-link', true);
+        }
+
+        function updateTraditionalMetrics() {
+            const nodeCount = traditionalNodes.length;
+            const linkCount = traditionalLinks.length;
+            
+            // Exponential complexity for subgraph isomorphism
+            const complexity = nodeCount === 0 ? 'O(1)' : 
+                             nodeCount < 5 ? `O(${nodeCount}!)` :
+                             nodeCount < 10 ? `O(V^k)` : 'O(V!)';
+            
+            // High memory usage due to complete graph snapshots
+            const memoryUsage = Math.floor(nodeCount * 4.5 + linkCount * 2.1);
+            
+            document.getElementById('trad-complexity').textContent = complexity;
+            document.getElementById('trad-memory').textContent = `${memoryUsage} MB`;
+            
+            // Update delay based on graph size (gets worse over time)
+            const delay = Math.min(3 + nodeCount * 0.5, 15);
+            document.getElementById('trad-delay').textContent = `~${delay.toFixed(1)}s`;
+        }
+
+        function updateIncrementalMetrics() {
+            const nodeCount = incrementalNodes.length;
+            const linkCount = incrementalLinks.length;
+            
+            // Linear/constant complexity for incremental updates
+            const k = Math.max(2, Math.floor(Math.sqrt(nodeCount))); // Affected neighborhood size
+            const complexity = nodeCount === 0 ? 'O(1)' : `O(${k})`;
+            
+            // Efficient memory usage - no redundant snapshots
+            const memoryUsage = Math.floor(nodeCount * 0.8 + linkCount * 0.3);
+            
+            document.getElementById('incr-complexity').textContent = complexity;
+            document.getElementById('incr-memory').textContent = `${memoryUsage} MB`;
+            
+            // Consistent low delay regardless of graph size
+            document.getElementById('incr-delay').textContent = '~0.15s';
+        }
+
+        function startSimulation() {
+            if (isRunning) return;
+            
+            console.log('Starting simulation...');
+            isRunning = true;
+            
+            // Hide loading messages
+            document.querySelectorAll('.loading').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // Generate events every 3 seconds
+            simulationInterval = setInterval(() => {
+                const event = createNetworkEvent();
+                console.log('Generated event:', event);
+                
+                updateTraditionalGraph(event);
+                updateIncrementalGraph(event);
+            }, 3000);
+            
+            // Generate first event immediately
+            const firstEvent = createNetworkEvent();
+            updateTraditionalGraph(firstEvent);
+            updateIncrementalGraph(firstEvent);
+        }
+
+        function stopSimulation() {
+            console.log('Stopping simulation...');
+            isRunning = false;
+            
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+            }
+        }
+
+        function resetSimulation() {
+            console.log('Resetting simulation...');
+            stopSimulation();
+            
+            // Reset data
+            traditionalNodes = [];
+            traditionalLinks = [];
+            incrementalNodes = [];
+            incrementalLinks = [];
+            traditionalDetections = 0;
+            incrementalDetections = 0;
+            nodeId = 0;
+            
+            // Reset metrics
+            document.getElementById('trad-detections').textContent = '0';
+            document.getElementById('incr-detections').textContent = '0';
+            document.getElementById('trad-memory').textContent = '0 MB';
+            document.getElementById('incr-memory').textContent = '0 MB';
+            
+            // Show loading messages
+            document.querySelectorAll('.loading').forEach(el => {
+                el.style.display = 'block';
+            });
+            
+            // Reinitialize graphs
+            initializeGraphs();
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, initializing...');
+            setTimeout(() => {
+                initializeGraphs();
+                console.log('Initialization complete');
+            }, 500);
+        });
+    </script>
+</body>
+</html>
